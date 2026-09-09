@@ -10,11 +10,16 @@ const ASSETS = [
   "assets/img03.jpg",  // rosto spray
   "assets/img04.jpg",  // rosto pixelizado
   "assets/img05.jpg",  // rosto contornado
-  "assets/img06.jpg"   // boca pixelizada
+  "assets/img06.jpg",  // boca pixelizada
+  "assets/img07.jpg",  // crânio/cérebro com gancho
+  "assets/img08.jpg",  // máscaras grão (triste/feliz)
+  "assets/img09.webp", // rosto vazio com reflexo
+  "assets/img10.webp", // rostos multiplicados/borrados
+  "assets/img11.jpg"   // máscara tripla
 ];
 const EYE_INDEX = 1;
 const MOUTH_INDEX = 5;
-const FACE_INDEXES = [0, 2, 3, 4];
+const FACE_INDEXES = [0, 2, 3, 4, 6, 7, 8, 9, 10];
 
 const stage = document.getElementById("stage");
 const tearLayer = document.getElementById("tearing-layer");
@@ -398,14 +403,13 @@ const GlitchEngine = (function () {
 /* =====================================================
    IMAGE MANAGER
 ===================================================== */
-// how far images are allowed to drift from dead-center, in vw/vh
-const CENTER_SPREAD_X = 14;
-const CENTER_SPREAD_Y = 12;
+// position/size are fully random across the whole screen now — any spot,
+// any size (small close-ups to huge oversized ones), nothing stays centered
 function centeredLeft(size) {
-  return clamp(50 - size / 2 + rand(-CENTER_SPREAD_X, CENTER_SPREAD_X), -5, 100 - size + 5);
+  return rand(-size * 0.4, 100 - size * 0.6);
 }
 function centeredTop(size) {
-  return clamp(42 - size / 2 + rand(-CENTER_SPREAD_Y, CENTER_SPREAD_Y), -5, 88 - size * 0.4);
+  return rand(-size * 0.3, 90 - size * 0.5);
 }
 
 const ImageManager = (function () {
@@ -447,7 +451,7 @@ const ImageManager = (function () {
       node.appendChild(layerB);
     }
 
-    const size = opts.size || rand(14, 42); // vw — kept moderate so it doesn't dominate the screen
+    const size = opts.size || rand(8, 78); // vw — anywhere from a tiny close-up to a huge oversized one
     const left = opts.left != null ? opts.left : centeredLeft(size);
     const top = opts.top != null ? opts.top : centeredTop(size);
     const rot = opts.rot != null ? opts.rot : rand(-9, 9);
@@ -502,12 +506,19 @@ const ImageManager = (function () {
     const idx = opts.assetIndex != null
       ? opts.assetIndex
       : pickFreshAssetIndex(ASSETS.map((_, i) => i));
-    return buildNode(idx, opts);
+    const node = buildNode(idx, opts);
+
+    // EVERY image gets a random lifespan by default — nothing is allowed to
+    // stay on screen forever. Pass life:null explicitly to opt out (unused).
+    if (opts.life !== null) {
+      const life = opts.life != null ? opts.life : rand(1400, 4200);
+      setTimeout(() => removeNode(node), life);
+    }
+    return node;
   }
 
   function spawnBrief(opts = {}, life = rand(300, 900)) {
-    const node = spawnRandom({ ...opts, fragmented: false });
-    setTimeout(() => removeNode(node), life);
+    const node = spawnRandom({ ...opts, fragmented: false, life });
     return node;
   }
 
@@ -696,7 +707,7 @@ const RandomEvents = (function () {
     const t = elapsed();
     const progression = clamp(t / 60, 0, 1); // ramps over ~60s (used to be 90s)
     intensityFactor = 1 + progression * 2.2; // starts busier, gets even busier
-    BackgroundNoise.setIntensity(0.04 + progression * 0.06);
+    BackgroundNoise.setIntensity(0.05 + progression * 0.07);
 
     const base = rand(500, 1600); // shorter gaps overall = more constant chaos
     const next = base / intensityFactor;
