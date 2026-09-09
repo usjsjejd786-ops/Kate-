@@ -364,9 +364,19 @@ const GlitchEngine = (function () {
 /* =====================================================
    IMAGE MANAGER
 ===================================================== */
+// how far images are allowed to drift from dead-center, in vw/vh
+const CENTER_SPREAD_X = 14;
+const CENTER_SPREAD_Y = 12;
+function centeredLeft(size) {
+  return clamp(50 - size / 2 + rand(-CENTER_SPREAD_X, CENTER_SPREAD_X), -5, 100 - size + 5);
+}
+function centeredTop(size) {
+  return clamp(42 - size / 2 + rand(-CENTER_SPREAD_Y, CENTER_SPREAD_Y), -5, 88 - size * 0.4);
+}
+
 const ImageManager = (function () {
   const activeNodes = new Set();
-  const MAX_NODES = window.innerWidth < 700 ? 7 : 12;
+  const MAX_NODES = window.innerWidth < 700 ? 3 : 5;
 
   function buildNode(assetIndex, opts = {}) {
     const node = document.createElement("div");
@@ -403,9 +413,9 @@ const ImageManager = (function () {
       node.appendChild(layerB);
     }
 
-    const size = opts.size || rand(10, 55); // vw
-    const left = opts.left != null ? opts.left : rand(-8, 92);
-    const top = opts.top != null ? opts.top : rand(-8, 82);
+    const size = opts.size || rand(14, 42); // vw — kept moderate so it doesn't dominate the screen
+    const left = opts.left != null ? opts.left : centeredLeft(size);
+    const top = opts.top != null ? opts.top : centeredTop(size);
     const rot = opts.rot != null ? opts.rot : rand(-9, 9);
     const z = opts.z || randInt(1, 20);
 
@@ -482,7 +492,7 @@ const ImageManager = (function () {
 function introSequence() {
   BackgroundNoise.setIntensity(0.03);
   let i = 0;
-  const flashes = randInt(5, 8);
+  const flashes = randInt(4, 6);
 
   function step() {
     if (i >= flashes) {
@@ -490,8 +500,9 @@ function introSequence() {
       return;
     }
     i++;
+    const size = rand(16, 30);
     const node = ImageManager.spawnBrief(
-      { size: rand(14, 34), left: rand(5, 75), top: rand(5, 65), rot: rand(-5, 5), z: 5 },
+      { size, left: centeredLeft(size), top: centeredTop(size), rot: rand(-5, 5), z: 5 },
       rand(90, 260)
     );
     if (chance(0.4)) setTimeout(() => GlitchEngine.rgbSplit(node, 150), 30);
@@ -502,11 +513,11 @@ function introSequence() {
 }
 
 function buildChaoticGallery() {
-  const initial = window.innerWidth < 700 ? 4 : 7;
+  const initial = window.innerWidth < 700 ? 1 : 2;
   for (let i = 0; i < initial; i++) {
     setTimeout(() => {
       ImageManager.spawnRandom({ fragmented: chance(0.3) });
-    }, i * rand(220, 500));
+    }, i * rand(300, 600));
   }
   startRandomEvents();
 }
@@ -516,8 +527,9 @@ function buildChaoticGallery() {
 ===================================================== */
 const RandomEvents = (function () {
   const events = [
-    { name: "flashBrief", weight: 3, fn: () => {
-      const n = ImageManager.spawnBrief({ size: rand(15, 45) }, rand(80, 180));
+    { name: "flashBrief", weight: 1.5, fn: () => {
+      const size = rand(15, 38);
+      const n = ImageManager.spawnBrief({ size, left: centeredLeft(size), top: centeredTop(size) }, rand(80, 180));
       AudioManager.click(1200, 0.02, 0.03);
     }},
     { name: "fullFrame", weight: 1.5, fn: () => {
@@ -537,21 +549,24 @@ const RandomEvents = (function () {
       if (n) GlitchEngine.combo(n);
     }},
     { name: "eyeBlip", weight: 1.2, fn: () => {
+      const size = rand(8, 18);
       const n = ImageManager.spawnBrief(
-        { assetIndex: EYE_INDEX, size: rand(8, 20), left: rand(0, 85), top: rand(0, 80), z: 30 },
+        { assetIndex: EYE_INDEX, size, left: centeredLeft(size), top: centeredTop(size), z: 30 },
         rand(60, 180)
       );
     }},
-    { name: "mouthBig", weight: 1, fn: () => {
+    { name: "mouthBig", weight: 0.7, fn: () => {
+      const size = rand(45, 75); // still big/close, but no longer overruns the whole frame
       const n = ImageManager.spawnBrief(
-        { assetIndex: MOUTH_INDEX, size: rand(60, 120), left: rand(-15, 30), top: rand(-10, 30), z: 25 },
+        { assetIndex: MOUTH_INDEX, size, left: centeredLeft(size), top: centeredTop(size), z: 25 },
         rand(150, 320)
       );
       AudioManager.click(200, 0.05, 0.03);
     }},
-    { name: "faceBehind", weight: 1.3, fn: () => {
+    { name: "faceBehind", weight: 0.9, fn: () => {
+      const size = rand(24, 42);
       const behind = ImageManager.spawnBrief(
-        { assetIndex: pick(FACE_INDEXES), size: rand(30, 55), z: 2 },
+        { assetIndex: pick(FACE_INDEXES), size, left: centeredLeft(size), top: centeredTop(size), z: 2 },
         rand(200, 450)
       );
     }},
@@ -562,15 +577,15 @@ const RandomEvents = (function () {
     { name: "bwAll", weight: 0.6, fn: () => {
       ImageManager.eachActive((n) => GlitchEngine.bw(n, rand(200, 450)));
     }},
-    { name: "screenTear", weight: 1.8, fn: () => {
+    { name: "screenTear", weight: 2.2, fn: () => {
       DistortionSystem.horizontalTear();
       DistortionSystem.shakeStage(6, 120);
       AudioManager.whiteNoiseBurst(0.08, 0.04);
     }},
-    { name: "aberration", weight: 1.5, fn: () => {
+    { name: "aberration", weight: 2, fn: () => {
       DistortionSystem.aberrationPulse();
     }},
-    { name: "flicker", weight: 1.5, fn: () => {
+    { name: "flicker", weight: 2, fn: () => {
       DistortionSystem.whiteFlicker(rand(60,140), rand(0.2,0.5));
     }},
     { name: "vanishAll", weight: 0.4, fn: () => {
@@ -579,17 +594,25 @@ const RandomEvents = (function () {
       nodes.forEach((n) => (n.style.opacity = "0"));
       setTimeout(() => nodes.forEach((n) => n.classList.contains("visible") && (n.style.opacity = "1")), rand(600, 1400));
     }},
-    { name: "blackout", weight: 0.3, fn: () => {
+    { name: "blackout", weight: 0.4, fn: () => {
       DistortionSystem.blackoutAll(rand(500, 1100));
     }},
-    { name: "multiply", weight: 1, fn: () => {
+    { name: "multiply", weight: 0.3, fn: () => {
+      // only ever adds ONE extra image, and only if we're below the (now low) cap
       if (ImageManager.count() < ImageManager.MAX_NODES) {
-        for (let i = 0; i < randInt(1, 3); i++) ImageManager.spawnRandom({});
+        ImageManager.spawnRandom({});
       }
     }},
-    { name: "pixelCorrupt", weight: 1.8, fn: () => {
+    { name: "pixelCorrupt", weight: 2.2, fn: () => {
       const n = ImageManager.randomActive();
       if (n) GlitchEngine.pixelate(n, rand(300, 600));
+    }},
+    { name: "fullFrameGlitch", weight: 1.5, fn: () => {
+      // pure screen-wide glitch burst, no new image spawned
+      DistortionSystem.aberrationPulse(rand(150, 300), rand(0.5, 0.9));
+      DistortionSystem.whiteFlicker(rand(50, 110), rand(0.15, 0.4));
+      if (chance(0.5)) DistortionSystem.shakeStage(rand(3, 9), rand(80, 160));
+      AudioManager.whiteNoiseBurst(0.06, 0.03);
     }}
   ];
 
