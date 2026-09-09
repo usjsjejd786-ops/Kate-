@@ -235,7 +235,25 @@ const DistortionSystem = (function () {
     }, duration);
   }
 
-  return { shakeStage, whiteFlicker, aberrationPulse, horizontalTear, fullScreenFlash, blackoutAll };
+  // classic VHS tracking-error: a noisy band rolls across the screen while
+  // the whole stage jitters/rolls vertically for a moment
+  function vhsTrackingGlitch(duration = rand(350, 750)) {
+    const band = document.createElement("div");
+    band.className = "vhs-track-band";
+    band.style.setProperty("--vhs-dur", duration + "ms");
+    document.body.appendChild(band);
+
+    stage.classList.add("vhs-roll");
+    stage.style.setProperty("--vhs-roll-dur", duration + "ms");
+
+    setTimeout(() => {
+      band.remove();
+      stage.classList.remove("vhs-roll");
+      stage.style.removeProperty("--vhs-roll-dur");
+    }, duration);
+  }
+
+  return { shakeStage, whiteFlicker, aberrationPulse, horizontalTear, fullScreenFlash, blackoutAll, vhsTrackingGlitch };
 })();
 
 /* =====================================================
@@ -355,9 +373,25 @@ const GlitchEngine = (function () {
     if (chance(0.3)) duplicateGhost(node);
   }
 
+  // heavy VHS-style corruption on a single image: exaggerated colour-channel
+  // split + a horizontal tracking-tear band + a brief vertical jolt
+  function vhsChroma(node, duration = rand(220, 480)) {
+    pulseClass(node, "vhs", duration);
+    const band = document.createElement("div");
+    band.className = "vhs-tear";
+    band.style.top = rand(10, 85) + "%";
+    band.style.height = rand(4, 14) + "%";
+    node.appendChild(band);
+    setTimeout(() => band.remove(), duration);
+
+    const prev = node.style.transform;
+    node.style.transform = prev + ` translateY(${rand(-6, 6)}px) skewX(${rand(-3, 3)}deg)`;
+    setTimeout(() => (node.style.transform = prev), duration);
+  }
+
   return {
     rgbSplit, negative, bw, blur, hueShift, invisibleBlip,
-    skewJolt, mirrorBlip, fragmentDisplace, pixelate, duplicateGhost, combo
+    skewJolt, mirrorBlip, fragmentDisplace, pixelate, duplicateGhost, combo, vhsChroma
   };
 })();
 
@@ -450,9 +484,24 @@ const ImageManager = (function () {
     toRemove.forEach(removeNode);
   }
 
+  function activeAssetIndexes() {
+    const used = new Set();
+    activeNodes.forEach((n) => used.add(Number(n.dataset.asset)));
+    return used;
+  }
+
+  // pick a random asset index that isn't already visible on screen, when possible
+  function pickFreshAssetIndex(pool) {
+    const used = activeAssetIndexes();
+    const free = pool.filter((i) => !used.has(i));
+    return free.length ? pick(free) : pick(pool); // if everything is in use, fall back to any
+  }
+
   function spawnRandom(opts = {}) {
     pruneIfNeeded();
-    const idx = opts.assetIndex != null ? opts.assetIndex : randInt(0, ASSETS.length - 1);
+    const idx = opts.assetIndex != null
+      ? opts.assetIndex
+      : pickFreshAssetIndex(ASSETS.map((_, i) => i));
     return buildNode(idx, opts);
   }
 
@@ -483,7 +532,7 @@ const ImageManager = (function () {
   }
   requestAnimationFrame(driftLoop);
 
-  return { spawnRandom, spawnBrief, removeNode, eachActive, randomActive, count, MAX_NODES };
+  return { spawnRandom, spawnBrief, removeNode, eachActive, randomActive, count, MAX_NODES, freshAssetFrom: pickFreshAssetIndex };
 })();
 
 /* =====================================================
@@ -566,7 +615,7 @@ const RandomEvents = (function () {
     { name: "faceBehind", weight: 0.9, fn: () => {
       const size = rand(24, 42);
       const behind = ImageManager.spawnBrief(
-        { assetIndex: pick(FACE_INDEXES), size, left: centeredLeft(size), top: centeredTop(size), z: 2 },
+        { assetIndex: ImageManager.freshAssetFrom(FACE_INDEXES), size, left: centeredLeft(size), top: centeredTop(size), z: 2 },
         rand(200, 450)
       );
     }},
@@ -613,6 +662,15 @@ const RandomEvents = (function () {
       DistortionSystem.whiteFlicker(rand(50, 110), rand(0.15, 0.4));
       if (chance(0.5)) DistortionSystem.shakeStage(rand(3, 9), rand(80, 160));
       AudioManager.whiteNoiseBurst(0.06, 0.03);
+    }},
+    { name: "vhsTracking", weight: 2.2, fn: () => {
+      // the tracking-error band that rolls across the whole screen
+      DistortionSystem.vhsTrackingGlitch();
+      AudioManager.whiteNoiseBurst(0.1, 0.04);
+    }},
+    { name: "vhsNodeCorrupt", weight: 2, fn: () => {
+      const n = ImageManager.randomActive();
+      if (n) GlitchEngine.vhsChroma(n, rand(250, 500));
     }}
   ];
 
@@ -636,11 +694,11 @@ const RandomEvents = (function () {
 
     // progression: things speed up & intensify over the session
     const t = elapsed();
-    const progression = clamp(t / 90, 0, 1); // ramps over ~90s
-    intensityFactor = 0.6 + progression * 1.8;
-    BackgroundNoise.setIntensity(0.03 + progression * 0.05);
+    const progression = clamp(t / 60, 0, 1); // ramps over ~60s (used to be 90s)
+    intensityFactor = 1 + progression * 2.2; // starts busier, gets even busier
+    BackgroundNoise.setIntensity(0.04 + progression * 0.06);
 
-    const base = rand(900, 2600);
+    const base = rand(500, 1600); // shorter gaps overall = more constant chaos
     const next = base / intensityFactor;
     setTimeout(loop, next);
   }
@@ -762,7 +820,16 @@ const InteractionManager = (function () {
     if (node === clickTarget) clickCount++;
     else { clickTarget = node; clickCount = 1; }
 
-    GlitchEngine.combo(node);
+    // clicking doesn't always do the same thing: sometimes full disfigurement,
+    // sometimes just a small hiccup, sometimes nothing visible happens at all
+    const r = Math.random();
+    if (r < 0.4) {
+      GlitchEngine.combo(node);          // heavy: disfigured/corrupted
+      GlitchEngine.vhsChroma(node, rand(200, 450));
+    } else if (r < 0.75) {
+      pick([GlitchEngine.rgbSplit, GlitchEngine.skewJolt, GlitchEngine.negative])(node); // light hiccup
+    } // else: nothing — click just registers, image stays normal
+
     AudioManager.click(400 + clickCount * 80, 0.03, 0.03);
 
     if (clickCount >= 5) {

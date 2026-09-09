@@ -210,3 +210,90 @@ html,body{
 @media (max-width: 700px){
   .node{ filter:grayscale(0.1) contrast(1.08); }
 }
+
+/* =====================================================
+   VHS LOOK — persistent tape feel + on-demand corruption
+===================================================== */
+
+/* subtle persistent tape colour cast + slow rolling scanlines */
+.scanlines{
+  animation: vhsScanRoll 6s linear infinite;
+}
+@keyframes vhsScanRoll{
+  0%   { background-position-y: 0px; }
+  100% { background-position-y: 60px; }
+}
+
+#crt-overlay::before{
+  content:"";
+  position:absolute; inset:0;
+  background:
+    linear-gradient(90deg, rgba(255,0,90,0.05), rgba(0,255,200,0.04) 50%, rgba(255,0,90,0.05));
+  mix-blend-mode: color-dodge;
+  opacity:0.5;
+  animation: vhsColorWarble 2.6s ease-in-out infinite;
+}
+@keyframes vhsColorWarble{
+  0%,100%{ transform: translateX(0); opacity:0.35; }
+  50%{ transform: translateX(3px); opacity:0.55; }
+}
+
+/* whole-stage tracking roll: brief vertical jitter + skew, like tape mistracking */
+#stage.vhs-roll{
+  animation: vhsRoll var(--vhs-roll-dur, 500ms) steps(2, end) both;
+}
+@keyframes vhsRoll{
+  0%{ transform: translateY(0) skewX(0deg); filter:none; }
+  20%{ transform: translateY(-6px) skewX(1.5deg); filter: hue-rotate(15deg); }
+  40%{ transform: translateY(4px) skewX(-1deg); filter: hue-rotate(-10deg); }
+  60%{ transform: translateY(-3px) skewX(0.6deg); filter:none; }
+  80%{ transform: translateY(2px) skewX(-0.4deg); filter: hue-rotate(6deg); }
+  100%{ transform: translateY(0) skewX(0deg); filter:none; }
+}
+
+/* the noisy horizontal band that rolls top-to-bottom during a tracking glitch */
+.vhs-track-band{
+  position:fixed;
+  left:0; right:0;
+  height:8vh;
+  z-index:7;
+  pointer-events:none;
+  mix-blend-mode: overlay;
+  background:
+    repeating-linear-gradient(to bottom,
+      rgba(255,255,255,0.5) 0px, rgba(255,255,255,0.5) 1px,
+      rgba(0,0,0,0.3) 2px, rgba(0,0,0,0.3) 3px),
+    linear-gradient(90deg, rgba(255,0,90,0.25), rgba(0,255,220,0.2));
+  filter: blur(0.5px) contrast(1.4);
+  animation: vhsTrackBand var(--vhs-dur, 500ms) linear both;
+}
+@keyframes vhsTrackBand{
+  0%   { top:-8vh; opacity:0; }
+  10%  { opacity:1; }
+  90%  { opacity:1; }
+  100% { top:100%; opacity:0; }
+}
+
+/* per-image corruption: exaggerated colour split + a torn coloured band */
+.node.vhs{
+  filter:none;
+  animation: vhsNodeJitter 90ms steps(2,end) infinite;
+}
+@keyframes vhsNodeJitter{
+  0%{ transform: translateX(0); }
+  50%{ transform: translateX(2px); }
+  100%{ transform: translateX(-2px); }
+}
+.vhs-tear{
+  position:absolute;
+  left:-4%; right:-4%;
+  z-index:2;
+  pointer-events:none;
+  background:
+    repeating-linear-gradient(to bottom,
+      rgba(255,255,255,0.35) 0px, rgba(255,255,255,0.35) 1px,
+      transparent 2px, transparent 3px),
+    linear-gradient(90deg, rgba(255,0,90,0.4), rgba(0,255,220,0.35));
+  mix-blend-mode: hard-light;
+  filter: blur(0.4px);
+}
