@@ -8,35 +8,22 @@
 </head>
 <body>
 
-  <!-- SVG filter: warps everything inside #crt-frame so the whole page
-       reads as a bulging, curved CRT tube screen instead of a flat rectangle -->
-  <svg width="0" height="0" style="position:absolute" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
-    <filter id="crtBulge" x="-15%" y="-15%" width="130%" height="130%">
-      <feImage href="assets/crt-displace.png" xlink:href="assets/crt-displace.png" x="0" y="0" width="100%" height="100%"
-               preserveAspectRatio="none" result="map"/>
-      <feDisplacementMap in="SourceGraphic" in2="map" scale="46"
-               xChannelSelector="R" yChannelSelector="G"/>
-    </filter>
-  </svg>
-
   <div id="crt-viewport">
-    <div id="crt-frame">
-      <canvas id="noise-canvas"></canvas>
+    <canvas id="noise-canvas"></canvas>
 
-      <div id="stage"></div>
+    <div id="stage"></div>
 
-      <div id="crt-overlay">
-        <div class="scanlines"></div>
-        <div class="vignette"></div>
-        <div class="flicker"></div>
-        <div class="aberration"></div>
-        <div class="age-tint"></div>
-        <div class="scratches"></div>
-        <div class="tube-shading"></div>
-      </div>
-
-      <div id="tearing-layer"></div>
+    <div id="crt-overlay">
+      <div class="scanlines"></div>
+      <div class="vignette"></div>
+      <div class="flicker"></div>
+      <div class="aberration"></div>
+      <div class="age-tint"></div>
+      <div class="scratches"></div>
+      <div class="tube-shading"></div>
     </div>
+
+    <div id="tearing-layer"></div>
   </div>
 
   <script src="script.js"></script>
