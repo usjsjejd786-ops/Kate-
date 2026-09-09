@@ -9,11 +9,13 @@ html,body{
   padding:0;
   width:100%;
   min-height:400vh; /* allows scroll-driven behavior */
+  min-height:400dvh; /* mobile-safe viewport unit (ignores address-bar resize) */
   background:var(--bg);
   overflow-x:hidden;
   cursor: crosshair;
   -webkit-user-select:none;
   user-select:none;
+  touch-action: pan-y;
 }
 
 #noise-canvas{
@@ -32,6 +34,7 @@ html,body{
   top:0; left:0;
   width:100vw;
   height:100vh;
+  height:100dvh;
   overflow:hidden;
   z-index:1;
   background:#000;
@@ -193,10 +196,10 @@ html,body{
 
 #sound-toggle{
   position:fixed;
-  bottom:14px;
-  right:14px;
-  width:14px;
-  height:14px;
+  bottom:calc(14px + env(safe-area-inset-bottom));
+  right:calc(14px + env(safe-area-inset-right));
+  width:22px;
+  height:22px;
   border-radius:50%;
   background:rgba(255,255,255,0.12);
   z-index:9;
