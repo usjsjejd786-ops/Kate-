@@ -25,7 +25,6 @@ const stage = document.getElementById("stage");
 const tearLayer = document.getElementById("tearing-layer");
 const flickerEl = document.querySelector(".flicker");
 const aberrationEl = document.querySelector(".aberration");
-const soundToggle = document.getElementById("sound-toggle");
 
 let sessionStart = performance.now();
 function elapsed() { return (performance.now() - sessionStart) / 1000; }
@@ -44,7 +43,7 @@ const BackgroundNoise = (function () {
   const ctx = canvas.getContext("2d", { alpha: true });
   let w, h, imgData, buf32;
   let running = true;
-  let intensity = 0.05;
+  let intensity = 0.14;
 
   function resize() {
     w = canvas.width = Math.floor(window.innerWidth / 2);
@@ -71,7 +70,7 @@ const BackgroundNoise = (function () {
   requestAnimationFrame(frame);
 
   return {
-    setIntensity(v) { intensity = clamp(v, 0, 0.5); },
+    setIntensity(v) { intensity = clamp(v, 0, 0.95); },
     burst(v, ms) {
       const prev = intensity;
       intensity = v;
@@ -141,12 +140,17 @@ const AudioManager = (function () {
     }
   }
 
-  soundToggle.addEventListener("click", (e) => {
-    e.stopPropagation();
-    enabled = !enabled;
-    soundToggle.classList.toggle("on", enabled);
-    if (enabled) { ensureCtx(); startHum(); } else { stopHum(); }
-  });
+  // sound turns itself on at the first tap/click anywhere on the page —
+  // no visible button needed, this just satisfies the browser's autoplay
+  // rule that audio needs a user gesture first
+  function enableOnFirstInteraction() {
+    if (enabled) return;
+    enabled = true;
+    ensureCtx();
+    startHum();
+  }
+  window.addEventListener("pointerdown", enableOnFirstInteraction, { once: true });
+  window.addEventListener("keydown", enableOnFirstInteraction, { once: true });
 
   return { whiteNoiseBurst, click, isEnabled: () => enabled };
 })();
@@ -550,7 +554,7 @@ const ImageManager = (function () {
    INTRO SEQUENCE — "acordando"
 ===================================================== */
 function introSequence() {
-  BackgroundNoise.setIntensity(0.03);
+  BackgroundNoise.setIntensity(0.14);
   let i = 0;
   const flashes = randInt(4, 6);
 
@@ -587,7 +591,7 @@ function buildChaoticGallery() {
 ===================================================== */
 const RandomEvents = (function () {
   const events = [
-    { name: "flashBrief", weight: 1.5, fn: () => {
+    { name: "flashBrief", weight: 1.5, calm: true, fn: () => {
       const size = rand(15, 38);
       const n = ImageManager.spawnBrief({ size, left: centeredLeft(size), top: centeredTop(size) }, rand(80, 180));
       AudioManager.click(1200, 0.02, 0.03);
@@ -600,7 +604,7 @@ const RandomEvents = (function () {
       const n = ImageManager.randomActive();
       if (n) GlitchEngine.duplicateGhost(n);
     }},
-    { name: "mirror", weight: 2, fn: () => {
+    { name: "mirror", weight: 2, calm: true, fn: () => {
       const n = ImageManager.randomActive();
       if (n) GlitchEngine.mirrorBlip(n, rand(150, 350));
     }},
@@ -608,7 +612,7 @@ const RandomEvents = (function () {
       const n = ImageManager.randomActive();
       if (n) GlitchEngine.combo(n);
     }},
-    { name: "eyeBlip", weight: 1.2, fn: () => {
+    { name: "eyeBlip", weight: 1.2, calm: true, fn: () => {
       const size = rand(8, 18);
       const n = ImageManager.spawnBrief(
         { assetIndex: EYE_INDEX, size, left: centeredLeft(size), top: centeredTop(size), z: 30 },
@@ -623,14 +627,14 @@ const RandomEvents = (function () {
       );
       AudioManager.click(200, 0.05, 0.03);
     }},
-    { name: "faceBehind", weight: 0.9, fn: () => {
+    { name: "faceBehind", weight: 0.9, calm: true, fn: () => {
       const size = rand(24, 42);
       const behind = ImageManager.spawnBrief(
         { assetIndex: ImageManager.freshAssetFrom(FACE_INDEXES), size, left: centeredLeft(size), top: centeredTop(size), z: 2 },
         rand(200, 450)
       );
     }},
-    { name: "negativeNode", weight: 2, fn: () => {
+    { name: "negativeNode", weight: 2, calm: true, fn: () => {
       const n = ImageManager.randomActive();
       if (n) GlitchEngine.negative(n, rand(90, 220));
     }},
@@ -682,42 +686,65 @@ const RandomEvents = (function () {
     { name: "vhsNodeCorrupt", weight: 2, fn: () => {
       const n = ImageManager.randomActive();
       if (n) GlitchEngine.vhsChroma(n, rand(250, 500));
+    }},
+    { name: "staticBurst", weight: 2.5, fn: () => {
+      // heavy channel-search-style static slam, then settles back down
+      BackgroundNoise.burst(rand(0.6, 0.9), rand(180, 420));
+      DistortionSystem.whiteFlicker(rand(40, 90), rand(0.1, 0.3));
+      AudioManager.whiteNoiseBurst(0.15, 0.06);
     }}
   ];
 
   const totalWeight = events.reduce((s, e) => s + e.weight, 0);
-  function pickEvent() {
-    let r = Math.random() * totalWeight;
-    for (const e of events) {
+  const calmEvents = events.filter((e) => e.calm);
+  const calmWeight = calmEvents.reduce((s, e) => s + e.weight, 0);
+
+  function pickEvent(calmOnly) {
+    const pool = calmOnly ? calmEvents : events;
+    const total = calmOnly ? calmWeight : totalWeight;
+    let r = Math.random() * total;
+    for (const e of pool) {
       if (r < e.weight) return e;
       r -= e.weight;
     }
-    return events[0];
+    return pool[0];
   }
 
   let running = false;
   let intensityFactor = 1;
 
+  // first ~13s: almost nothing, long gaps, only mild effects — lets the
+  // person get comfortable. After that: fast ramp into full chaos, which
+  // reads as much scarier than staying at one constant chaos level.
+  const CALM_DURATION = 13;   // seconds of near-silence at the start
+  const RAMP_DURATION = 9;    // seconds to go from calm to full chaos
+
   function loop() {
     if (!running) return;
-    const ev = pickEvent();
+    const t = elapsed();
+    const inCalmPhase = t < CALM_DURATION;
+    const ev = pickEvent(inCalmPhase);
     try { ev.fn(); } catch (err) { /* fail silently, never expose errors visually */ }
 
-    // progression: things speed up & intensify over the session
-    const t = elapsed();
-    const progression = clamp(t / 60, 0, 1); // ramps over ~60s (used to be 90s)
-    intensityFactor = 1 + progression * 2.2; // starts busier, gets even busier
-    BackgroundNoise.setIntensity(0.05 + progression * 0.07);
-
-    const base = rand(500, 1600); // shorter gaps overall = more constant chaos
-    const next = base / intensityFactor;
+    let next;
+    if (inCalmPhase) {
+      intensityFactor = 0.3;
+      BackgroundNoise.setIntensity(0.15); // quiet but still a visible layer of TV snow
+      next = rand(2600, 4800); // long, quiet gaps
+    } else {
+      const progression = clamp((t - CALM_DURATION) / RAMP_DURATION, 0, 1);
+      intensityFactor = 1.2 + progression * 2.8; // ramps past the old max — more contrast
+      BackgroundNoise.setIntensity(0.2 + progression * 0.4); // heavy TV static once it ramps up
+      const base = rand(450, 1500);
+      next = base / intensityFactor;
+    }
     setTimeout(loop, next);
   }
 
   function start() {
     if (running) return;
     running = true;
-    setTimeout(loop, rand(600, 1400));
+    setTimeout(loop, rand(1200, 2200)); // first event also waits a bit
   }
   function boostBriefly(factor = 3, duration = 1500) {
     const prev = intensityFactor;
