@@ -82,11 +82,34 @@ const BackgroundNoise = (function () {
 
   function frame() {
     if (running) {
-      const alpha = Math.floor(intensity * 255) << 24;
-      for (let i = 0; i < buf32.length; i++) {
-        const v = (Math.random() * 255) | 0;
-        buf32[i] = alpha | (v << 16) | (v << 8) | v;
+      // mostly transparent black — only sparse colored specks + a few thin
+      // horizontal streaks light up, matching a real dropped-signal VHS look
+      buf32.fill(0);
+
+      const speckCount = Math.floor(w * h * (0.006 + intensity * 0.055));
+      for (let i = 0; i < speckCount; i++) {
+        const idx = (Math.random() * buf32.length) | 0;
+        const r = (Math.random() * 255) | 0;
+        const g = (Math.random() * 255) | 0;
+        const b = (Math.random() * 255) | 0;
+        const a = (Math.floor((0.3 + Math.random() * 0.7) * intensity * 255) & 0xff) << 24;
+        buf32[idx] = a | (b << 16) | (g << 8) | r;
       }
+
+      const streaks = randInt(2, 6);
+      for (let s = 0; s < streaks; s++) {
+        const y = (Math.random() * h) | 0;
+        const rowBase = y * w;
+        const xStart = (Math.random() * w) | 0;
+        const len = Math.min(w - xStart, ((Math.random() * w * 0.5) | 0) + 8);
+        const r = (Math.random() * 255) | 0;
+        const g = (Math.random() * 255) | 0;
+        const b = (Math.random() * 255) | 0;
+        const a = (Math.floor((0.25 + Math.random() * 0.55) * intensity * 255) & 0xff) << 24;
+        const px = a | (b << 16) | (g << 8) | r;
+        for (let x = xStart; x < xStart + len; x++) buf32[rowBase + x] = px;
+      }
+
       ctx.putImageData(imgData, 0, 0);
     }
     setTimeout(() => requestAnimationFrame(frame), 90); // throttled, cheap
@@ -104,100 +127,15 @@ const BackgroundNoise = (function () {
 })();
 
 /* =====================================================
-   AUDIO MANAGER (synthesized — no external audio files)
+   AUDIO MANAGER — sound is turned off site-wide. Every function stays
+   defined as a no-op so the rest of the code (which calls these all
+   over) doesn't need to change.
 ===================================================== */
 const AudioManager = (function () {
-  let ctx = null;
-  let enabled = false;
-  let hum = null;
-
-  function ensureCtx() {
-    if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
-  }
-
-  function whiteNoiseBurst(duration = 0.12, gainVal = 0.05) {
-    if (!enabled) return;
-    ensureCtx();
-    const bufferSize = ctx.sampleRate * duration;
-    const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
-    const data = buffer.getChannelData(0);
-    for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
-    const src = ctx.createBufferSource();
-    src.buffer = buffer;
-    const gain = ctx.createGain();
-    gain.gain.value = gainVal;
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
-    src.connect(gain).connect(ctx.destination);
-    src.start();
-  }
-
-  function click(freq = 800, duration = 0.03, gainVal = 0.04) {
-    if (!enabled) return;
-    ensureCtx();
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.type = "square";
-    osc.frequency.value = freq * (0.7 + Math.random() * 0.6);
-    gain.gain.value = gainVal;
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
-    osc.connect(gain).connect(ctx.destination);
-    osc.start();
-    osc.stop(ctx.currentTime + duration);
-  }
-
-  function startHum() {
-    if (!enabled || hum) return;
-    ensureCtx();
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.type = "sine";
-    osc.frequency.value = 50;
-    gain.gain.value = 0.008;
-    osc.connect(gain).connect(ctx.destination);
-    osc.start();
-    hum = { osc, gain };
-  }
-  function stopHum() {
-    if (hum) {
-      try { hum.osc.stop(); } catch (e) {}
-      hum = null;
-    }
-  }
-
-  // --- real audio files (uploaded SFX), separate from the synthesized stuff above ---
-  const tvStaticLoop = new Audio("assets/audio/tv-static.mp3");
-  tvStaticLoop.loop = true;
-  tvStaticLoop.volume = 0.14;
-
-  // small pool so overlapping plays don't cut each other off, but a cap
-  // keeps things from turning into a wall of noise if images spawn fast
-  const manglePool = [0, 1, 2].map(() => {
-    const a = new Audio("assets/audio/mangle-static.mp3");
-    a.volume = 0.4;
-    return a;
-  });
-  function playMangleStatic() {
-    if (!enabled) return;
-    const free = manglePool.find((a) => a.paused || a.ended);
-    if (!free) return; // all instances busy — just skip this one
-    free.currentTime = 0;
-    free.play().catch(() => {});
-  }
-
-  // sound turns itself on at the first tap/click anywhere on the page —
-  // no visible button needed, this just satisfies the browser's autoplay
-  // rule that audio needs a user gesture first
-  function enableOnFirstInteraction() {
-    if (enabled) return;
-    enabled = true;
-    ensureCtx();
-    startHum();
-    tvStaticLoop.play().catch(() => {});
-  }
-  window.addEventListener("pointerdown", enableOnFirstInteraction, { once: true });
-  window.addEventListener("keydown", enableOnFirstInteraction, { once: true });
-
-  return { whiteNoiseBurst, click, playMangleStatic, isEnabled: () => enabled };
+  function whiteNoiseBurst() {}
+  function click() {}
+  function playMangleStatic() {}
+  return { whiteNoiseBurst, click, playMangleStatic, isEnabled: () => false };
 })();
 
 /* =====================================================
@@ -510,7 +448,7 @@ const ImageManager = (function () {
     const size = opts.size || rand(8, 78); // vw — anywhere from a tiny close-up to a huge oversized one
     const left = opts.left != null ? opts.left : centeredLeft(size);
     const top = opts.top != null ? opts.top : centeredTop(size);
-    const rot = opts.rot != null ? opts.rot : rand(-9, 9);
+    const rot = 0; // images always stay straight — no random tilt on spawn
     const z = opts.z || randInt(1, 20);
 
     node.style.width = size + "vw";
@@ -621,7 +559,7 @@ function introSequence() {
     i++;
     const size = rand(16, 30);
     const node = ImageManager.spawnBrief(
-      { size, left: centeredLeft(size), top: centeredTop(size), rot: rand(-5, 5), z: 5 },
+      { size, left: centeredLeft(size), top: centeredTop(size), rot: 0, z: 5 },
       rand(90, 260)
     );
     if (chance(0.4)) setTimeout(() => GlitchEngine.rgbSplit(node, 150), 30);
@@ -747,6 +685,11 @@ const RandomEvents = (function () {
       BackgroundNoise.burst(rand(0.6, 0.9), rand(180, 420));
       DistortionSystem.whiteFlicker(rand(40, 90), rand(0.1, 0.3));
       AudioManager.whiteNoiseBurst(0.15, 0.06);
+    }},
+    { name: "screenFiller", weight: 0.35, fn: () => {
+      // rare: one image briefly takes over the ENTIRE screen
+      const size = rand(105, 145);
+      ImageManager.spawnRandom({ size, left: rand(-12, 8), top: rand(-10, 6), life: rand(350, 900) });
     }}
   ];
 

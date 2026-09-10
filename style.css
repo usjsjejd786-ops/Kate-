@@ -36,7 +36,7 @@ html,body{
   height:100%;
   z-index:2;
   mix-blend-mode: screen;
-  opacity:0.4;
+  opacity:0.75;
   pointer-events:none;
 }
 
@@ -75,7 +75,7 @@ html,body{
 .node{
   position:absolute;
   will-change: transform, opacity, filter;
-  filter:grayscale(0.15) contrast(1.05);
+  filter:grayscale(1) contrast(1.15) brightness(0.92) blur(0.6px);
   image-rendering:auto;
   opacity:0;
   transition:none;
@@ -260,7 +260,7 @@ html,body{
 }
 
 @media (max-width: 700px){
-  .node{ filter:grayscale(0.1) contrast(1.08); }
+  .node{ filter:grayscale(1) contrast(1.1); }
 }
 
 /* =====================================================
