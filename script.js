@@ -164,6 +164,26 @@ const AudioManager = (function () {
     }
   }
 
+  // --- real audio files (uploaded SFX), separate from the synthesized stuff above ---
+  const tvStaticLoop = new Audio("assets/audio/tv-static.mp3");
+  tvStaticLoop.loop = true;
+  tvStaticLoop.volume = 0.14;
+
+  // small pool so overlapping plays don't cut each other off, but a cap
+  // keeps things from turning into a wall of noise if images spawn fast
+  const manglePool = [0, 1, 2].map(() => {
+    const a = new Audio("assets/audio/mangle-static.mp3");
+    a.volume = 0.4;
+    return a;
+  });
+  function playMangleStatic() {
+    if (!enabled) return;
+    const free = manglePool.find((a) => a.paused || a.ended);
+    if (!free) return; // all instances busy — just skip this one
+    free.currentTime = 0;
+    free.play().catch(() => {});
+  }
+
   // sound turns itself on at the first tap/click anywhere on the page —
   // no visible button needed, this just satisfies the browser's autoplay
   // rule that audio needs a user gesture first
@@ -172,11 +192,12 @@ const AudioManager = (function () {
     enabled = true;
     ensureCtx();
     startHum();
+    tvStaticLoop.play().catch(() => {});
   }
   window.addEventListener("pointerdown", enableOnFirstInteraction, { once: true });
   window.addEventListener("keydown", enableOnFirstInteraction, { once: true });
 
-  return { whiteNoiseBurst, click, isEnabled: () => enabled };
+  return { whiteNoiseBurst, click, playMangleStatic, isEnabled: () => enabled };
 })();
 
 /* =====================================================
@@ -506,6 +527,9 @@ const ImageManager = (function () {
     stage.appendChild(node);
     requestAnimationFrame(() => node.classList.add("visible"));
     activeNodes.add(node);
+
+    if (chance(0.25)) AudioManager.playMangleStatic();
+
     return node;
   }
 
