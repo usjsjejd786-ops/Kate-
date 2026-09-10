@@ -80,6 +80,17 @@ const BackgroundNoise = (function () {
   window.addEventListener("resize", resize);
   resize();
 
+  // one channel bright, the other two dim — guarantees an actual color
+  // (red/green/blue-ish) instead of ever landing on white
+  function noiseColor() {
+    const dom = (Math.random() * 3) | 0;
+    const bright = 140 + ((Math.random() * 115) | 0);
+    const dim = () => (Math.random() * 55) | 0;
+    const c = [dim(), dim(), dim()];
+    c[dom] = bright;
+    return c;
+  }
+
   function frame() {
     if (running) {
       // mostly transparent black — only sparse colored specks + a few thin
@@ -89,9 +100,7 @@ const BackgroundNoise = (function () {
       const speckCount = Math.floor(w * h * (0.006 + intensity * 0.055));
       for (let i = 0; i < speckCount; i++) {
         const idx = (Math.random() * buf32.length) | 0;
-        const r = (Math.random() * 255) | 0;
-        const g = (Math.random() * 255) | 0;
-        const b = (Math.random() * 255) | 0;
+        const [r, g, b] = noiseColor();
         const a = (Math.floor((0.3 + Math.random() * 0.7) * intensity * 255) & 0xff) << 24;
         buf32[idx] = a | (b << 16) | (g << 8) | r;
       }
@@ -102,9 +111,7 @@ const BackgroundNoise = (function () {
         const rowBase = y * w;
         const xStart = (Math.random() * w) | 0;
         const len = Math.min(w - xStart, ((Math.random() * w * 0.5) | 0) + 8);
-        const r = (Math.random() * 255) | 0;
-        const g = (Math.random() * 255) | 0;
-        const b = (Math.random() * 255) | 0;
+        const [r, g, b] = noiseColor();
         const a = (Math.floor((0.25 + Math.random() * 0.55) * intensity * 255) & 0xff) << 24;
         const px = a | (b << 16) | (g << 8) | r;
         for (let x = xStart; x < xStart + len; x++) buf32[rowBase + x] = px;

@@ -172,31 +172,6 @@ html,body{
   opacity:0.85;
 }
 
-/* old-tape vertical scratches: thin bright lines that flicker in and out */
-.scratches{
-  position:absolute; inset:0;
-  mix-blend-mode: screen;
-  opacity:0.5;
-  background-image:
-    linear-gradient(90deg, transparent 6%, rgba(255,255,255,0.5) 6.2%, transparent 6.6%),
-    linear-gradient(90deg, transparent 31%, rgba(255,255,255,0.35) 31.15%, transparent 31.5%),
-    linear-gradient(90deg, transparent 58%, rgba(255,255,255,0.45) 58.2%, transparent 58.5%),
-    linear-gradient(90deg, transparent 77%, rgba(255,255,255,0.3) 77.1%, transparent 77.4%),
-    linear-gradient(90deg, transparent 92%, rgba(255,255,255,0.4) 92.2%, transparent 92.5%);
-  animation: scratchFlicker 3.4s steps(1,end) infinite;
-}
-@keyframes scratchFlicker{
-  0%,100%{ opacity:0.5; transform:translateX(0); }
-  8%{ opacity:0.1; }
-  9%{ opacity:0.6; transform:translateX(-2px); }
-  22%{ opacity:0.15; }
-  23%{ opacity:0.55; transform:translateX(1px); }
-  47%{ opacity:0.05; }
-  48%{ opacity:0.5; transform:translateX(0); }
-  71%{ opacity:0.2; transform:translateX(3px); }
-  72%{ opacity:0.55; }
-}
-
 /* sells the "curved glass tube" look: soft highlight sweeping over the
    convex glass + heavy dark falloff hugging the (already rounded) corners */
 .tube-shading{
