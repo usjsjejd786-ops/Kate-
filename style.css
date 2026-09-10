@@ -1,0 +1,373 @@
+:root{
+  --bg:#000000;
+}
+
+*{ box-sizing:border-box; -webkit-tap-highlight-color: transparent; }
+
+html,body{
+  margin:0;
+  padding:0;
+  width:100%;
+  min-height:400vh; /* allows scroll-driven behavior */
+  min-height:400dvh; /* mobile-safe viewport unit (ignores address-bar resize) */
+  background:var(--bg);
+  overflow-x:hidden;
+  -webkit-user-select:none;
+  user-select:none;
+  touch-action: pan-y;
+}
+
+#crt-viewport{
+  position:fixed;
+  inset:0;
+  width:100vw;
+  height:100vh;
+  height:100dvh;
+  overflow:hidden;
+  background:#000;
+  z-index:0;
+  border-radius: 3.5vw / 2.5vh; /* rounded tube corners */
+}
+
+#noise-canvas{
+  position:absolute;
+  top:0; left:0;
+  width:100%;
+  height:100%;
+  z-index:2;
+  mix-blend-mode: screen;
+  opacity:0.4;
+  pointer-events:none;
+}
+
+#stage{
+  position:absolute;
+  top:0; left:0;
+  width:100%;
+  height:100%;
+  overflow:hidden;
+  z-index:1;
+  background:#000;
+  perspective: 800px;
+}
+
+.frag{
+  position:absolute;
+  top:0;
+  left:0;
+  width:100%;
+  height:33.4%;
+  overflow:hidden;
+}
+.frag img{
+  position:absolute;
+  width:100%;
+  height:300%;
+  object-fit:cover;
+  display:block;
+}
+.frag.f1 img{ top:0; }
+.frag.f2{ top:33.3%; }
+.frag.f2 img{ top:-33.3%; }
+.frag.f3{ top:66.6%; }
+.frag.f3 img{ top:-66.6%; }
+
+.node{
+  position:absolute;
+  will-change: transform, opacity, filter;
+  filter:grayscale(0.15) contrast(1.05);
+  image-rendering:auto;
+  opacity:0;
+  transition:none;
+  pointer-events:auto;
+  backface-visibility:hidden;
+}
+
+.node.visible{ opacity:1; }
+
+.node.rgbsplit{
+  filter: none;
+}
+.node.rgbsplit .frag img{
+  filter: none;
+}
+
+.node .layer{
+  position:absolute;
+  top:0; left:0; right:0; bottom:0;
+  mix-blend-mode: screen;
+  opacity:0;
+  pointer-events:none;
+}
+.node.rgbsplit .layer.r{ opacity:0.85; filter: sepia(1) saturate(6) hue-rotate(-50deg); transform: translate(3px,0); }
+.node.rgbsplit .layer.b{ opacity:0.85; filter: sepia(1) saturate(6) hue-rotate(150deg); transform: translate(-3px,0); }
+
+.node.negative{ filter: invert(1) contrast(1.1); }
+.node.bw{ filter: grayscale(1) contrast(1.3); }
+.node.blur{ filter: blur(6px); }
+.node.pixelated{ image-rendering: pixelated; }
+.node.hue{ filter: hue-rotate(180deg) saturate(3); }
+.node.blackout{ opacity:0 !important; }
+.node.hidden{ display:none; }
+
+.node canvas.pixcanvas{
+  position:absolute;
+  top:0;left:0;width:100%;height:100%;
+  image-rendering: pixelated;
+  display:none;
+}
+.node.pixmode img{ opacity:0; }
+.node.pixmode canvas.pixcanvas{ display:block; }
+
+#crt-overlay{
+  position:absolute;
+  top:0;left:0;
+  width:100%;
+  height:100%;
+  z-index:5;
+  pointer-events:none;
+}
+
+.scanlines{
+  position:absolute; inset:0;
+  background:repeating-linear-gradient(
+    to bottom,
+    rgba(0,0,0,0.18) 0px,
+    rgba(0,0,0,0.18) 1px,
+    rgba(0,0,0,0) 2px,
+    rgba(0,0,0,0) 3px
+  );
+  opacity:0.55;
+  mix-blend-mode:multiply;
+}
+
+.vignette{
+  position:absolute; inset:0;
+  background:radial-gradient(ellipse at center, rgba(0,0,0,0) 45%, rgba(0,0,0,0.75) 100%);
+}
+
+.flicker{
+  position:absolute; inset:0;
+  background:#fff;
+  opacity:0;
+  mix-blend-mode: overlay;
+}
+
+.aberration{
+  position:absolute; inset:0;
+  mix-blend-mode: screen;
+  opacity:0;
+  background:
+    linear-gradient(90deg, rgba(255,0,60,0.15), transparent 2%),
+    linear-gradient(270deg, rgba(0,180,255,0.15), transparent 2%);
+}
+
+/* aged / degraded tape colour cast — desaturated, warm, slightly uneven */
+.age-tint{
+  position:absolute; inset:0;
+  background:
+    radial-gradient(ellipse at 50% 40%, rgba(255,230,190,0.10), rgba(20,15,10,0.35) 90%),
+    linear-gradient(180deg, rgba(255,210,150,0.06), rgba(0,0,0,0) 30%, rgba(0,0,0,0) 70%, rgba(255,210,150,0.05));
+  mix-blend-mode: multiply;
+  opacity:0.85;
+}
+
+/* old-tape vertical scratches: thin bright lines that flicker in and out */
+.scratches{
+  position:absolute; inset:0;
+  mix-blend-mode: screen;
+  opacity:0.5;
+  background-image:
+    linear-gradient(90deg, transparent 6%, rgba(255,255,255,0.5) 6.2%, transparent 6.6%),
+    linear-gradient(90deg, transparent 31%, rgba(255,255,255,0.35) 31.15%, transparent 31.5%),
+    linear-gradient(90deg, transparent 58%, rgba(255,255,255,0.45) 58.2%, transparent 58.5%),
+    linear-gradient(90deg, transparent 77%, rgba(255,255,255,0.3) 77.1%, transparent 77.4%),
+    linear-gradient(90deg, transparent 92%, rgba(255,255,255,0.4) 92.2%, transparent 92.5%);
+  animation: scratchFlicker 3.4s steps(1,end) infinite;
+}
+@keyframes scratchFlicker{
+  0%,100%{ opacity:0.5; transform:translateX(0); }
+  8%{ opacity:0.1; }
+  9%{ opacity:0.6; transform:translateX(-2px); }
+  22%{ opacity:0.15; }
+  23%{ opacity:0.55; transform:translateX(1px); }
+  47%{ opacity:0.05; }
+  48%{ opacity:0.5; transform:translateX(0); }
+  71%{ opacity:0.2; transform:translateX(3px); }
+  72%{ opacity:0.55; }
+}
+
+/* sells the "curved glass tube" look: soft highlight sweeping over the
+   convex glass + heavy dark falloff hugging the (already rounded) corners */
+.tube-shading{
+  position:absolute; inset:0;
+  background:
+    radial-gradient(ellipse 70% 55% at 38% 30%, rgba(255,255,255,0.10), rgba(255,255,255,0) 60%),
+    radial-gradient(ellipse 120% 100% at 50% 50%, rgba(0,0,0,0) 55%, rgba(0,0,0,0.55) 88%, rgba(0,0,0,0.9) 100%);
+  mix-blend-mode: normal;
+}
+
+/* subtle constant "breathing" of the picture, like glass under pressure —
+   pure transform, no filter dependency, so it can never break rendering */
+#stage{
+  animation: tubeBreathe 7s ease-in-out infinite;
+}
+@keyframes tubeBreathe{
+  0%,100%{ transform: scale(1); }
+  50%{ transform: scale(1.012); }
+}
+
+#tearing-layer{
+  position:absolute;
+  top:0;left:0;
+  width:100%;
+  height:100%;
+  z-index:6;
+  pointer-events:none;
+  overflow:hidden;
+}
+.tear-strip{
+  position:absolute;
+  left:0; right:0;
+  background:#000;
+  overflow:hidden;
+}
+.tear-strip img{
+  position:absolute;
+  width:100%;
+  object-fit:cover;
+}
+
+.fullflash{
+  position:fixed;
+  top:0;left:0;
+  width:100%;height:100%;
+  z-index:4;
+  object-fit:cover;
+  opacity:0;
+  pointer-events:none;
+}
+
+.blackveil{
+  position:fixed;
+  top:0;left:0;
+  width:100%;
+  height:100%;
+  background:#000;
+  z-index:8;
+  opacity:1;
+  pointer-events:none;
+}
+
+@media (max-width: 700px){
+  .node{ filter:grayscale(0.1) contrast(1.08); }
+}
+
+/* =====================================================
+   VHS LOOK — persistent tape feel + on-demand corruption
+===================================================== */
+
+/* subtle persistent tape colour cast + slow rolling scanlines */
+.scanlines{
+  animation: vhsScanRoll 6s linear infinite;
+}
+@keyframes vhsScanRoll{
+  0%   { background-position-y: 0px; }
+  100% { background-position-y: 60px; }
+}
+
+#crt-overlay::before{
+  content:"";
+  position:absolute; inset:0;
+  background:
+    linear-gradient(90deg, rgba(255,0,90,0.05), rgba(0,255,200,0.04) 50%, rgba(255,0,90,0.05));
+  mix-blend-mode: color-dodge;
+  opacity:0.5;
+  animation: vhsColorWarble 2.6s ease-in-out infinite;
+}
+@keyframes vhsColorWarble{
+  0%,100%{ transform: translateX(0); opacity:0.35; }
+  50%{ transform: translateX(3px); opacity:0.55; }
+}
+
+/* whole-stage tracking roll: brief vertical jitter + skew, like tape mistracking */
+#stage.vhs-roll{
+  animation: vhsRoll var(--vhs-roll-dur, 500ms) steps(2, end) both;
+}
+@keyframes vhsRoll{
+  0%{ transform: translateY(0) skewX(0deg); filter:none; }
+  20%{ transform: translateY(-6px) skewX(1.5deg); filter: hue-rotate(15deg); }
+  40%{ transform: translateY(4px) skewX(-1deg); filter: hue-rotate(-10deg); }
+  60%{ transform: translateY(-3px) skewX(0.6deg); filter:none; }
+  80%{ transform: translateY(2px) skewX(-0.4deg); filter: hue-rotate(6deg); }
+  100%{ transform: translateY(0) skewX(0deg); filter:none; }
+}
+
+/* the noisy horizontal band that rolls top-to-bottom during a tracking glitch */
+.vhs-track-band{
+  position:fixed;
+  left:0; right:0;
+  height:8vh;
+  z-index:7;
+  pointer-events:none;
+  mix-blend-mode: overlay;
+  background:
+    repeating-linear-gradient(to bottom,
+      rgba(255,255,255,0.5) 0px, rgba(255,255,255,0.5) 1px,
+      rgba(0,0,0,0.3) 2px, rgba(0,0,0,0.3) 3px),
+    linear-gradient(90deg, rgba(255,0,90,0.25), rgba(0,255,220,0.2));
+  filter: blur(0.5px) contrast(1.4);
+  animation: vhsTrackBand var(--vhs-dur, 500ms) linear both;
+}
+@keyframes vhsTrackBand{
+  0%   { top:-8vh; opacity:0; }
+  10%  { opacity:1; }
+  90%  { opacity:1; }
+  100% { top:100%; opacity:0; }
+}
+
+/* per-image corruption: exaggerated colour split + a torn coloured band */
+.node.vhs{
+  filter:none;
+  animation: vhsNodeJitter 90ms steps(2,end) infinite;
+}
+@keyframes vhsNodeJitter{
+  0%{ transform: translateX(0); }
+  50%{ transform: translateX(2px); }
+  100%{ transform: translateX(-2px); }
+}
+.vhs-tear{
+  position:absolute;
+  left:-4%; right:-4%;
+  z-index:2;
+  pointer-events:none;
+  background:
+    repeating-linear-gradient(to bottom,
+      rgba(255,255,255,0.35) 0px, rgba(255,255,255,0.35) 1px,
+      transparent 2px, transparent 3px),
+    linear-gradient(90deg, rgba(255,0,90,0.4), rgba(0,255,220,0.35));
+  mix-blend-mode: hard-light;
+  filter: blur(0.4px);
+}
+
+/* subliminal whisper text: no transition on purpose — it must snap on and
+   off instantly, so a blink is enough to miss it completely */
+#whisper-text{
+  position:fixed;
+  inset:0;
+  z-index:20;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  text-align:center;
+  padding:0 8vw;
+  pointer-events:none;
+  opacity:0;
+  color:#f2f2f2;
+  font-family: Georgia, "Times New Roman", serif;
+  font-weight:700;
+  font-size: 8vw;
+  letter-spacing:1px;
+  text-shadow: 0 0 18px rgba(255,0,0,0.65), 0 0 3px #000;
+  mix-blend-mode: difference;
+}
