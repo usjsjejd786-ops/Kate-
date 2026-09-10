@@ -15,16 +15,40 @@ const ASSETS = [
   "assets/img08.jpg",  // máscaras grão (triste/feliz)
   "assets/img09.webp", // rosto vazio com reflexo
   "assets/img10.webp", // rostos multiplicados/borrados
-  "assets/img11.jpg"   // máscara tripla
+  "assets/img11.jpg",  // máscara tripla
+  "assets/img12.jpg",  // raio-x tórax/coração
+  "assets/img13.webp", // rosto duplicado em grade
+  "assets/img14.webp", // rosto boca aberta dentes
+  "assets/img15.webp", // ressonância crânio
+  "assets/img16.webp", // rosto borrado gritando
+  "assets/img17.jpg"   // rosto com máscaras ao fundo
 ];
 const EYE_INDEX = 1;
 const MOUTH_INDEX = 5;
-const FACE_INDEXES = [0, 2, 3, 4, 6, 7, 8, 9, 10];
+const FACE_INDEXES = [0, 2, 3, 4, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
 
 const stage = document.getElementById("stage");
 const tearLayer = document.getElementById("tearing-layer");
 const flickerEl = document.querySelector(".flicker");
 const aberrationEl = document.querySelector(".aberration");
+const whisperEl = document.getElementById("whisper-text");
+
+const WHISPERS = [
+  "EU SEI O QUE VC FEZ",
+  "EU TE VEJO",
+  "CUIDADO",
+  "VOCÊ QUE FEZ ISSO"
+];
+
+// snaps a phrase on screen for a very short, fixed instant — no fade in
+// or out — so it reads as a single "corrupted frame" that's gone before
+// you can really process it
+function flashWhisper(text = pick(WHISPERS), duration = rand(70, 150)) {
+  whisperEl.textContent = text;
+  whisperEl.style.transition = "none";
+  whisperEl.style.opacity = "1";
+  setTimeout(() => { whisperEl.style.opacity = "0"; }, duration);
+}
 
 let sessionStart = performance.now();
 function elapsed() { return (performance.now() - sessionStart) / 1000; }
@@ -237,6 +261,13 @@ const DistortionSystem = (function () {
     veil.style.transition = "opacity 260ms ease-in";
     document.body.appendChild(veil);
     requestAnimationFrame(() => (veil.style.opacity = "1"));
+
+    // while the screen is fully black, there's a good chance of a single
+    // subliminal phrase snapping on for an instant — easy to miss if you blink
+    if (chance(0.65) && duration > 400) {
+      setTimeout(() => flashWhisper(), rand(280, Math.max(300, duration - 200)));
+    }
+
     setTimeout(() => {
       veil.style.transition = "opacity 500ms ease-out";
       veil.style.opacity = "0";
@@ -834,7 +865,8 @@ const InteractionManager = (function () {
   window.addEventListener("touchstart", (e) => {
     touchCount++;
     const t = e.touches[0];
-    if (t) onMove(t.clientX, t.clientY);
+    if (!t) return; // guard: some touch events fire with no active touch point
+    onMove(t.clientX, t.clientY);
     const el = document.elementFromPoint(t.clientX, t.clientY);
     const node = el ? el.closest(".node") : null;
     if (node) GlitchEngine.combo(node);
@@ -932,7 +964,13 @@ const SecretEvents = (function () {
    INIT
 ===================================================== */
 document.addEventListener("DOMContentLoaded", () => {
-  introSequence();
+  try {
+    introSequence();
+  } catch (err) {
+    // if the intro sequence fails for any reason, don't let the whole
+    // page stay blank — jump straight to showing images
+    try { buildChaoticGallery(); } catch (err2) {}
+  }
 });
 
 })();
