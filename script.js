@@ -160,6 +160,9 @@ const AudioManager = (function () {
   const bgLoop = new Audio("assets/audio/bg-noise.mp3");
   bgLoop.loop = true;
   bgLoop.volume = 0.12;
+  bgLoop.addEventListener("error", () => {
+    console.error("bg-noise.mp3 failed to LOAD — check that assets/audio/bg-noise.mp3 was actually uploaded to the repo");
+  });
 
   function startBgLoop() {
     bgLoop.play().catch((err) => console.warn("bg-noise play blocked:", err));
@@ -508,7 +511,9 @@ const ImageManager = (function () {
     node._still = chance(0.35); // some stay perfectly still
 
     stage.appendChild(node);
-    requestAnimationFrame(() => node.classList.add("visible"));
+    node.classList.add("visible"); // instant — no rAF delay, so ultra-brief
+                                    // flashes can't get removed before they
+                                    // ever actually become visible
     activeNodes.add(node);
 
     if (chance(0.25)) AudioManager.playMangleStatic();
@@ -731,10 +736,21 @@ const RandomEvents = (function () {
       DistortionSystem.whiteFlicker(rand(40, 90), rand(0.1, 0.3));
       AudioManager.whiteNoiseBurst(0.15, 0.06);
     }},
-    { name: "screenFiller", weight: 0.35, fn: () => {
-      // rare: one image briefly takes over the ENTIRE screen
+    { name: "screenFiller", weight: 2.2, fn: () => {
+      // one image briefly takes over the ENTIRE screen — noticeably more
+      // common than before, but still far from every other spawn
       const size = rand(105, 145);
       ImageManager.spawnRandom({ size, left: rand(-12, 8), top: rand(-10, 6), life: rand(350, 900) });
+    }},
+    { name: "multiBurst", weight: 3.6, fn: () => {
+      // occasionally several images land on screen almost at once, instead
+      // of the usual one-at-a-time trickle
+      const count = randInt(2, 4);
+      for (let i = 0; i < count; i++) {
+        setTimeout(() => {
+          if (ImageManager.count() < ImageManager.MAX_NODES) ImageManager.spawnRandom({});
+        }, i * rand(40, 120));
+      }
     }},
     { name: "familiarFace", weight: 0.55, fn: () => {
       // the "same" face keeps coming back — but never quite identical to
