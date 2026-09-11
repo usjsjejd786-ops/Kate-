@@ -8,13 +8,13 @@ html,body{
   margin:0;
   padding:0;
   width:100%;
-  min-height:400vh; /* allows scroll-driven behavior */
-  min-height:400dvh; /* mobile-safe viewport unit (ignores address-bar resize) */
+  height:100vh;
+  height:100dvh; /* mobile-safe viewport unit (ignores address-bar resize) */
   background:var(--bg);
-  overflow-x:hidden;
+  overflow:hidden; /* no scrolling in any direction */
   -webkit-user-select:none;
   user-select:none;
-  touch-action: pan-y;
+  touch-action: none;
 }
 
 #crt-viewport{
@@ -118,6 +118,15 @@ html,body{
 }
 .node.pixmode img{ opacity:0; }
 .node.pixmode canvas.pixcanvas{ display:block; }
+
+/* the plain (non-fragmented) photo: fills its square box, cropping instead
+   of stretching, so the original proportions are always kept */
+.node > img{
+  display:block;
+  width:100%;
+  height:100%;
+  object-fit:cover;
+}
 
 #crt-overlay{
   position:absolute;

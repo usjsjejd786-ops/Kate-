@@ -27,6 +27,20 @@ const EYE_INDEX = 1;
 const MOUTH_INDEX = 5;
 const FACE_INDEXES = [0, 2, 3, 4, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
 
+// the "familiar but wrong" face: reappears through the session, always
+// slightly different from the last time (mirrored, cropped differently,
+// a bit darker/lighter) — recognizable, but never quite the same
+const SIGNATURE_FACE_INDEX = 13; // rosto boca aberta dentes
+const FACE_TWISTS = [
+  { mirror: false, pos: "50% 40%", filterExtra: "" },
+  { mirror: true,  pos: "50% 40%", filterExtra: "" },
+  { mirror: false, pos: "30% 15%", filterExtra: "brightness(0.85)" },
+  { mirror: false, pos: "70% 65%", filterExtra: "brightness(1.15)" },
+  { mirror: true,  pos: "40% 70%", filterExtra: "contrast(1.3)" },
+  { mirror: false, pos: "60% 10%", filterExtra: "brightness(0.8) contrast(1.2)" }
+];
+let signatureSeen = 0;
+
 const stage = document.getElementById("stage");
 const tearLayer = document.getElementById("tearing-layer");
 const flickerEl = document.querySelector(".flicker");
@@ -134,14 +148,33 @@ const BackgroundNoise = (function () {
 })();
 
 /* =====================================================
-   AUDIO MANAGER — sound is turned off site-wide. Every function stays
-   defined as a no-op so the rest of the code (which calls these all
-   over) doesn't need to change.
+   AUDIO MANAGER — most sound effects stay off (whiteNoiseBurst/click/
+   playMangleStatic are no-ops so the rest of the code doesn't need to
+   change). The one thing that IS active: a quiet background loop.
 ===================================================== */
 const AudioManager = (function () {
   function whiteNoiseBurst() {}
   function click() {}
   function playMangleStatic() {}
+
+  const bgLoop = new Audio("assets/audio/bg-noise.mp3");
+  bgLoop.loop = true;
+  bgLoop.volume = 0.12;
+
+  function startBgLoop() {
+    bgLoop.play().catch((err) => console.warn("bg-noise play blocked:", err));
+  }
+  // needs a user gesture first — browsers block audio otherwise
+  let started = false;
+  function enableOnFirstInteraction() {
+    if (started) return;
+    started = true;
+    startBgLoop();
+  }
+  ["pointerdown", "touchstart", "touchend", "click", "keydown"].forEach((evt) => {
+    window.addEventListener(evt, enableOnFirstInteraction, { once: true, passive: true });
+  });
+
   return { whiteNoiseBurst, click, playMangleStatic, isEnabled: () => false };
 })();
 
@@ -437,6 +470,8 @@ const ImageManager = (function () {
       const img = document.createElement("img");
       img.src = ASSETS[assetIndex];
       img.draggable = false;
+      if (opts.objectPosition) img.style.objectPosition = opts.objectPosition;
+      if (opts.filterExtra) img.style.filter = opts.filterExtra;
       node.appendChild(img);
 
       const canvas = document.createElement("canvas");
@@ -459,10 +494,13 @@ const ImageManager = (function () {
     const z = opts.z || randInt(1, 20);
 
     node.style.width = size + "vw";
+    node.style.height = size + "vw"; // same unit as width → a square box, so
+                                      // object-fit:cover can crop to it
+                                      // instead of ever stretching the photo
     node.style.left = left + "vw";
     node.style.top = top + "vh";
     node.style.zIndex = z;
-    node.style.transform = `rotate(${rot}deg)`;
+    node.style.transform = `rotate(${rot}deg)${opts.mirror ? " scaleX(-1)" : ""}`;
 
     node._baseTransform = node.style.transform;
     node._driftPhase = rand(0, Math.PI * 2);
@@ -697,6 +735,39 @@ const RandomEvents = (function () {
       // rare: one image briefly takes over the ENTIRE screen
       const size = rand(105, 145);
       ImageManager.spawnRandom({ size, left: rand(-12, 8), top: rand(-10, 6), life: rand(350, 900) });
+    }},
+    { name: "familiarFace", weight: 0.55, fn: () => {
+      // the "same" face keeps coming back — but never quite identical to
+      // last time: mirrored, cropped differently, a touch darker/brighter.
+      // Recognizable enough to feel familiar, off enough to feel wrong.
+      const twist = FACE_TWISTS[signatureSeen % FACE_TWISTS.length];
+      signatureSeen++;
+      const size = rand(28, 52);
+      ImageManager.spawnBrief({
+        assetIndex: SIGNATURE_FACE_INDEX,
+        size,
+        left: centeredLeft(size),
+        top: centeredTop(size),
+        mirror: twist.mirror,
+        objectPosition: twist.pos,
+        filterExtra: twist.filterExtra
+      }, rand(450, 950));
+    }},
+    { name: "ghostFrame", weight: 1.1, fn: () => {
+      // a single almost-subliminal frame: a large face flashes on and off
+      // so fast it barely registers — designed to leave someone unsure
+      // whether they actually saw anything at all
+      const size = rand(55, 100);
+      ImageManager.spawnBrief({
+        assetIndex: ImageManager.freshAssetFrom(FACE_INDEXES),
+        size, left: centeredLeft(size), top: centeredTop(size), z: 18
+      }, rand(30, 65));
+    }},
+    { name: "flickerWhisper", weight: 0.7, fn: () => {
+      // same subliminal phrase mechanic as the blackout one, but standalone
+      // — can happen any time, over whatever's already on screen, making
+      // it even easier to write off as imagination
+      flashWhisper(pick(WHISPERS), rand(35, 65));
     }}
   ];
 
